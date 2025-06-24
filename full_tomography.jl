@@ -9,9 +9,6 @@ function load_data(path, mode_name, symbols, sides)
         )
     end
 
-    for j ∈ 1:2:size(imgs, 3)
-        normalize!(view(imgs, :, :, j:j+1, :), 1)
-    end
     normalize!(imgs, 1)
 
     imgs
@@ -77,8 +74,8 @@ imgs = load_data(path, mode_name, symbols, sides);
 
 sim = reshape(get_probabilities(μ, θ), size(imgs))
 
-display(visualize(imgs))
-visualize(sim)
+display(visualize(imgs, share_colorrange=true))
+visualize(sim, share_colorrange=true)
 ##
 for (mode, ϕ) ∈ modes
     imgs = load_data(path, mode, symbols, sides)
@@ -95,7 +92,7 @@ end
 projector(ϕ) = ϕ * ϕ'
 balanced_mix(args...) = sum(projector, args) / length(args)
 
-modes = Dict(
+structured_modes = Dict(
     "Hh" => kron([1.0, 0], [1, 0]),
     "Hh+Vv" => balanced_mix(kron([1, 0], [1, 0]), kron([0, 1], [0, 1])),
     "LG(-)" => kron([1, -im], [1, im]) / 2,
@@ -124,7 +121,7 @@ order = Dict(
 path = "Data/Batch2/cropped_data.h5"
 ##
 mode_name = "Hh"
-ϕ = modes[mode_name]
+ϕ = structured_modes[mode_name]
 θ = traceless_vectorization(ϕ)
 
 imgs = load_data(path, mode_name, symbols, sides);
@@ -138,7 +135,7 @@ sim = reshape(get_probabilities(μ, θ), size(imgs))
 display(visualize(imgs))
 visualize(sim)
 ##
-for (mode, ϕ) ∈ modes
+for (mode, ϕ) ∈ structured_modes
     imgs_exp = load_data(path, mode, symbols, sides)
 
     μ = get_measurements(imgs_exp, pol_states, order[mode])
@@ -152,6 +149,10 @@ for (mode, ϕ) ∈ modes
 
     imgs_theo = reshape(get_probabilities(μ, traceless_vectorization(ϕ)), size(imgs_exp))
     imgs_pred = reshape(get_probabilities(μ, traceless_vectorization(ϕ_pred)), size(imgs_exp))
+
+    colorrange_exp = extrema(imgs_exp)
+    colorrange_theo = extrema(imgs_theo)
+    colorrange_pred = extrema(imgs_pred)
 
     fig = Figure(; figure_padding=0, size=(800, 950), title="Mode: $mode \n")
 
@@ -169,9 +170,9 @@ for (mode, ϕ) ∈ modes
             hidedecorations!(ax)
         end
 
-        heatmap!(ax_theo, imgs_theo[:, :, m, n], colormap=:jet)
-        heatmap!(ax_exp, imgs_exp[:, :, m, n], colormap=:jet)
-        heatmap!(ax_pred, imgs_pred[:, :, m, n], colormap=:jet)
+        heatmap!(ax_theo, imgs_theo[:, :, m, n], colormap=:jet, colorrange=colorrange_theo)
+        heatmap!(ax_exp, imgs_exp[:, :, m, n], colormap=:jet, colorrange=colorrange_exp)
+        heatmap!(ax_pred, imgs_pred[:, :, m, n], colormap=:jet, colorrange=colorrange_pred)
     end
 
     Label(g_theo[0, 1:6], "Theory (Mode: $mode)", fontsize=28)
