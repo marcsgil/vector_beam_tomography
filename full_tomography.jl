@@ -2,7 +2,7 @@ using HDF5, QuantumMeasurements, CairoMakie, LinearAlgebra
 
 includet("misc.jl")
 
-function load_data(path, mode_name, symbols, sides)
+function load_data(path, mode_name, symbols, sides, should_not_reverse)
     imgs = h5open(path) do file
         stack(
             read(file[mode_name*"/I$(pol)_$state"]) for pol ∈ symbols, state ∈ sides
@@ -11,10 +11,16 @@ function load_data(path, mode_name, symbols, sides)
 
     normalize!(imgs, 1)
 
+    for (condition, n) ∈ zip(should_not_reverse, axes(imgs, 3))
+        if !condition
+            imgs[:, :, n, :] = reverse(imgs[:, :, n, :], dims=3)
+        end
+    end
+
     imgs
 end
 
-function get_measurements(imgs, pol_states, direct_first)
+function get_measurements(imgs, pol_states)
     xs = axes(imgs, 1)
     ys = axes(imgs, 2)
     rs = Iterators.product(xs, ys)
@@ -31,7 +37,7 @@ function get_measurements(imgs, pol_states, direct_first)
         slice = view(imgs, :, :, m, n)
         pars = (sqrt_δA, center_of_mass_and_waist(slice, 1)...)
 
-        phase = isodd(n) == direct_first[m] ? 0.0 : -π / 2
+        phase = isodd(n) ? 0.0 : -π / 2
 
         idxs = img_len*(counter-1)+1:img_len*counter
 
@@ -120,25 +126,25 @@ order = Dict(
 
 path = "Data/Batch2/cropped_data.h5"
 ##
-mode_name = "Hh"
+mode_name = "LG(+)"
 ϕ = structured_modes[mode_name]
 θ = traceless_vectorization(ϕ)
 
-imgs = load_data(path, mode_name, symbols, sides);
+imgs = load_data(path, mode_name, symbols, sides, order[mode_name]);
 
-μ = get_measurements(imgs, pol_states, order[mode_name])
+imgs
+
+μ = get_measurements(imgs, pol_states)
 
 sim = reshape(get_probabilities(μ, θ), size(imgs))
 
-
-
-display(visualize(imgs))
-visualize(sim)
+display(visualize(imgs), share_colorrange=true)
+visualize(sim, share_colorrange=true)
 ##
 for (mode, ϕ) ∈ structured_modes
-    imgs_exp = load_data(path, mode, symbols, sides)
+    imgs_exp = load_data(path, mode, symbols, sides, order[mode])
 
-    μ = get_measurements(imgs_exp, pol_states, order[mode])
+    μ = get_measurements(imgs_exp, pol_states)
 
     method = MaximumLikelihood()
     ϕ_pred = estimate_state(imgs_exp, μ, method)[1]
